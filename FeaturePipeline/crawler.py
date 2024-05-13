@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 
 def csv_writer(data, file_name, headers=None):
-    directory = "data"
+    directory = "data/all_data"
     os.makedirs(directory, exist_ok=True)
     file_path = os.path.join(directory, file_name)
     with open(file_path, 'w', newline='', encoding='utf-8') as file:
@@ -27,24 +27,39 @@ class Crawler:
         letter_links = [self.base_url + link['href'] for link in soup.find_all("a", class_="button button--secondary") if link['href'].startswith('/')]
         return csv_writer(letter_links, "main_urls.csv")
 
-    def service_urls(self, page_link):
-        response = requests.get(page_link)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        filtered_links = [self.base_url + link['href'] for link in soup.find_all("a", class_="list__link") if link['href'].startswith('/a-to-z/service')]
-        return csv_writer(filtered_links, "service_urls.csv")
+    def service_urls(self,file_name):
+        df = pd.read_csv("data/main_urls.csv",names=['cols'])
+        filtered_links = []
+        for page_link in df['cols']:
+            print(f"Extracting url {page_link}")
+            response = requests.get(page_link)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            links = [self.base_url + link['href'] for link in soup.find_all("a", class_="list__link") if link['href'].startswith('/a-to-z/service')]
+            filtered_links.extend(links)
+        links_str = '\n'.join(filtered_links)
+    
+    # Write the links string to the CSV file
+        with open(f"data/all_data/{file_name}", 'w', newline='') as csvfile:
+            csvfile.write(links_str)
+        return "Finish"
 
     def page_urls(self):
-        df = pd.read_csv("data/service_urls.csv", names=["cols"])
+        df = pd.read_csv("data/all_data/all_service_urls.csv", names=["cols"])
         all_links = []
         for url in df['cols']:
             response = requests.get(url)
             soup = BeautifulSoup(response.text, 'html.parser')
             links = [link['href'] for link in soup.find_all("a", class_="service__link") if link['href'].startswith('/')]
             all_links.extend([self.base_url + link for link in links])
-        return csv_writer(all_links, "service_links_filter.csv")
+        links_str = '\n'.join(all_links)
+    
+    # Write the links string to the CSV file
+        with open(f"data/all_data/service_links_filter.csv", 'w', newline='') as csvfile:
+            csvfile.write(links_str)
+        return "Finish"
 
     def get_page_content_links(self):
-        df = pd.read_csv("data/page_content4link.csv", names=['cols'])
+        df = pd.read_csv("data/all_data/page_content4link.csv", names=['cols'])
         filtered_links = []
         for link in df['cols']:
             print(link)
@@ -59,19 +74,24 @@ class Crawler:
                     print(f"Error processing link {link}: {e}")
             else:
                 filtered_links.append(link)
-            # time.sleep(30)
-        return csv_writer(filtered_links, "page_content_links.csv")
+
+        links_str = '\n'.join(filtered_links)
+
+        with open(f"data/all_data/page_content_links.csv", 'w', newline='') as csvfile:
+            csvfile.write(links_str)
+        return "Finish"
     
     def crawl_content(self):
-        df = pd.read_csv("data/page_content_links.csv", names=["cols"])     
+        df = pd.read_csv("data/all_data/page_content_links.csv", names=["cols"])     
         data = []
 
         for idx, link in enumerate(df['cols']):
+            print(link)
             response = requests.get(link)
             soup = BeautifulSoup(response.text, 'html.parser')
             li_tags = soup.find_all('li')
             li_tags_without_class = [tag for tag in li_tags if not tag.get("class")]
-            li_texts = " "
+            li_texts = " "  
             p_texts = " "
             for li_tag in li_tags_without_class:
                 li_texts += li_tag.text.strip() + " "
@@ -82,8 +102,15 @@ class Crawler:
             for p_tag in p_without_class:
                 p_texts += p_tag.text.strip() + " "
 
-            data.append([link, li_texts + p_texts])
+            data.append(li_texts + p_texts)
 
-        headers = ["Link", "Text"]
-        return csv_writer(data, "crawled_content.csv", headers)
+        links_str = '\n'.join(data)
+
+        # Write the links string to a text file
+        with open("data/all_data/extracted_texts.txt", 'w', encoding='utf-8') as textfile:
+            textfile.write(links_str)
+
+        return "Finish"
+
+
 
